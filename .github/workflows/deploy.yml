@@ -1,0 +1,103 @@
+name: Deploy to AWS Elastic Beanstalk
+
+# ── Trigger: runs on every push to main branch ───────────────────────────────
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:   # allows manual trigger from GitHub UI
+
+# ── Environment variables — update these to match your AWS setup ─────────────
+env:
+  AWS_REGION:       us-east-1           # ← change to your region
+  EB_APP_NAME:      my-web-app          # ← your Elastic Beanstalk app name
+  EB_ENV_NAME:      my-web-app-env      # ← your Elastic Beanstalk env name
+  PYTHON_VERSION:   "3.12"
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 1: Test
+  # ────────────────────────────────────────────────────────────────────────────
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-flask
+
+      - name: ✅ Run tests
+        run: |
+          # Run tests if tests/ folder exists, else just verify app imports
+          if [ -d "tests" ]; then
+            pytest tests/ -v
+          else
+            python -c "from app import app; print('✅ App imports successfully')"
+          fi
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 2: Deploy to Elastic Beanstalk
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Elastic Beanstalk
+    runs-on: ubuntu-latest
+    needs: test          # only deploy if tests pass
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: 📦 Package application for Elastic Beanstalk
+        run: |
+          # Create a ZIP of all app files (exclude .git, __pycache__, etc.)
+          zip -r deploy.zip . \
+            --exclude "*.git*" \
+            --exclude "*__pycache__*" \
+            --exclude "*.pytest_cache*" \
+            --exclude "*.env*" \
+            --exclude "tests/*" \
+            --exclude "deploy.zip"
+
+          echo "✅ deploy.zip created"
+          ls -lh deploy.zip
+
+      - name: 🚀 Deploy to Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key:       ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key:       ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          application_name:     ${{ env.EB_APP_NAME }}
+          environment_name:     ${{ env.EB_ENV_NAME }}
+          region:               ${{ env.AWS_REGION }}
+          version_label:        "v-${{ github.run_number }}-${{ github.sha }}"
+          deployment_package:   deploy.zip
+          wait_for_deployment:  true
+
+      - name: ✅ Deployment complete
+        run: |
+          echo "🎉 Successfully deployed version v-${{ github.run_number }}"
+          echo "🔗 Check your app at your Elastic Beanstalk URL"
