@@ -63,6 +63,7 @@ jobs:
             --version-label v-${{ github.run_number }} \
             --source-bundle S3Bucket="elasticbeanstalk-${{ env.AWS_REGION }}-${{ secrets.AWS_ACCOUNT_ID }}",S3Key="my-aws-app/deploy-${{ github.run_number }}.zip"
 
+          
           aws elasticbeanstalk update-environment \
             --application-name ${{ env.EB_APP_NAME }} \
             --environment-name ${{ env.EB_ENV_NAME }} \
