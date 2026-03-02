@@ -11,7 +11,7 @@ on:
 env:
   AWS_REGION:       us-east-1           # ← change to your region
   EB_APP_NAME:      my-web-app          # ← your Elastic Beanstalk app name
-  EB_ENV_NAME:      my-web-app-env      # ← your Elastic Beanstalk env name
+  EB_ENV_NAME:      My-web-app-env      # ← your Elastic Beanstalk env name
   PYTHON_VERSION:   "3.12"
 
 jobs:
